@@ -5,7 +5,7 @@ A fast and lightweight JavaScript/TypeScript parser and generator for Freedeskto
 ## Usage
 
 ```ts
-import { parseAppStream, parseAppStreamComponent } from 'appstream';
+import { parseAppStream, parseAppStreamComponent } from '@guoyunhe/appstream';
 
 // A catalog file that holds many components
 const catalog = parseAppStream(xml);
