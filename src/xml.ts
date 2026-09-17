@@ -136,13 +136,23 @@ export function textContent(node: XmlNode | undefined): string {
 }
 
 /**
- * Locale tag of a translatable element, lower-cased. AppStream writes it as `xml:lang`; a plain
- * `lang` attribute is accepted as well. Elements without a language hold the untranslated source
- * strings.
+ * Locale tag of an element, or `undefined` when it carries no language. AppStream writes the tag as
+ * `xml:lang`; a plain `lang` attribute is accepted as well.
+ *
+ * Tags in POSIX form, which some metadata still uses, are rewritten to the BCP 47 form, so that
+ * `zh_CN` and `zh-CN` name the same locale. The case of the tag is kept as it was written.
+ */
+export function localeTag(node: XmlElement): string | undefined {
+  const tag = attribute(node, 'xml:lang') ?? attribute(node, 'lang');
+  return tag?.replaceAll('_', '-');
+}
+
+/**
+ * Locale tag of a translatable element. Elements without a language hold the untranslated source
+ * strings, which are keyed by `fallback`.
  */
 export function elementLocale(node: XmlElement, fallback = DEFAULT_LOCALE): string {
-  const tag = attribute(node, 'xml:lang') ?? attribute(node, 'lang');
-  return tag ? tag.toLowerCase() : fallback;
+  return localeTag(node) ?? fallback;
 }
 
 /**

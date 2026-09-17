@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, test } from 'vitest';
 
 import { parseAppStream, parseAppStreamComponent } from '../src';
@@ -134,6 +137,12 @@ const catalog = `<?xml version="1.0"?>
   </component>
 </components>`;
 
+/** A real MetaInfo file that translates every description block, including single list items. */
+const calligra = readFileSync(
+  fileURLToPath(new URL('./data/org.kde.calligra.sheets.metainfo.xml', import.meta.url)),
+  'utf8',
+);
+
 describe('parseAppStreamComponent', () => {
   const component = parseAppStreamComponent(metainfo);
 
@@ -154,6 +163,26 @@ describe('parseAppStreamComponent', () => {
       id: 'org.example',
       name: { en: 'The Foo Team' },
     });
+  });
+
+  test('normalizes POSIX locale tags to BCP 47', () => {
+    const component = parseAppStreamComponent(`<component>
+      <id>org.example.Posix</id>
+      <name>Example</name>
+      <name xml:lang="zh_CN">示例</name>
+      <name xml:lang="zh-TW">範例</name>
+      <summary lang="pt_BR">Exemplo</summary>
+      <screenshots>
+        <screenshot>
+          <image xml:lang="de_DE">https://example.org/de.png</image>
+        </screenshot>
+      </screenshots>
+    </component>`);
+
+    // `zh_CN` and `zh-CN` name the same locale, so they share one key.
+    expect(component?.name).toEqual({ en: 'Example', 'zh-CN': '示例', 'zh-TW': '範例' });
+    expect(component?.summary).toEqual({ 'pt-BR': 'Exemplo' });
+    expect(component?.screenshots?.[0]?.images[0]?.locale).toBe('de-DE');
   });
 
   test('collects urls and icons', () => {
@@ -292,6 +321,22 @@ describe('descriptions', () => {
     });
   });
 
+  test('keeps HTML headings', () => {
+    const component = parseAppStreamComponent(`<component>
+      <id>org.example.Headings</id>
+      <description>
+        <h1>Title</h1>
+        <h3>Section</h3>
+        <h6>Note</h6>
+        <heading>AppStream heading</heading>
+      </description>
+    </component>`);
+
+    expect(component?.description).toEqual({
+      en: '<h1>Title</h1>\n<h3>Section</h3>\n<h6>Note</h6>\n<heading>AppStream heading</heading>',
+    });
+  });
+
   test('escapes text and reads plain text descriptions', () => {
     const escaped = parseAppStreamComponent(`<component>
       <id>org.example.Escaped</id>
@@ -304,6 +349,185 @@ describe('descriptions', () => {
       <description>Just text</description>
     </component>`);
     expect(plain?.description).toEqual({ en: 'Just text' });
+  });
+
+  test('splits a list whose items are translated one by one', () => {
+    const component = parseAppStreamComponent(`<component>
+      <id>org.example.List</id>
+      <description>
+        <p>Intro</p>
+        <ul>
+          <li>first</li>
+          <li xml:lang="de">erste</li>
+          <li>second</li>
+          <li xml:lang="de">zweite</li>
+        </ul>
+      </description>
+    </component>`);
+
+    expect(component?.description).toEqual({
+      en: '<p>Intro</p>\n<ul><li>first</li> <li>second</li></ul>',
+      de: '<ul><li>erste</li> <li>zweite</li></ul>',
+    });
+  });
+
+  test('lists only the items a locale actually translated', () => {
+    const component = parseAppStreamComponent(`<component>
+      <id>org.example.Partial</id>
+      <description>
+        <p>Intro</p>
+        <ul>
+          <li>first</li>
+          <li>second</li>
+          <li xml:lang="de">erste</li>
+        </ul>
+      </description>
+    </component>`);
+
+    expect(component?.description).toEqual({
+      en: '<p>Intro</p>\n<ul><li>first</li> <li>second</li></ul>',
+      de: '<ul><li>erste</li></ul>',
+    });
+  });
+
+  test('applies the language of a list to its items', () => {
+    // Catalog files localize the whole description, so the items inherit its language.
+    const component = parseAppStreamComponent(`<component>
+      <id>org.example.Catalog</id>
+      <description xml:lang="de"><ul><li>eins</li><li>zwei</li></ul></description>
+    </component>`);
+
+    expect(component?.description).toEqual({ de: '<ul><li>eins</li> <li>zwei</li></ul>' });
+  });
+});
+
+describe('descriptions of a real MetaInfo file', () => {
+  const description = parseAppStreamComponent(calligra)?.description;
+
+  /** List items of a description, in the order they appear in the markup. */
+  const listItems = (markup: string | undefined): string[] => markup?.match(/<li>.*?<\/li>/g) ?? [];
+
+  test('translates every block, keeping the languages apart', () => {
+    expect(Object.keys(description ?? {})).toHaveLength(40);
+
+    // The untranslated blocks hold only the items that were not translated.
+    expect(description?.en).toBe(
+      '<p>Calligra Sheets is a fully-featured calculation and spreadsheet tool. Use it to quickly ' +
+        'create and calculate various business-related spreadsheets, such as income and ' +
+        'expenditure, employee working hours, etc.</p>\n' +
+        '<p>Features:</p>\n' +
+        '<ul><li>Use shapes to take notes or mind maps</li> <li>Large range of pre-defined ' +
+        'templates</li> <li>Powerful and comprehensive formula list</li> <li>Work in a familiar ' +
+        'environment</li></ul>',
+    );
+
+    expect(description?.['zh-CN']).toContain('<p>程序功能：</p>');
+    expect(listItems(description?.['zh-CN'])).toEqual([
+      '<li>插入各种图形来进行标记或制作思维导图</li>',
+      '<li>种类丰富的预制模板</li>',
+      '<li>强大的和全面的公式列表</li>',
+      '<li>与现有同类软件操作类似易上手</li>',
+    ]);
+  });
+
+  test('gives a locale only the list items it translated', () => {
+    // Interlingua translated a single item, Uyghur only the "Features:" heading.
+    expect(listItems(description?.ia)).toEqual([
+      '<li>Tu usa shapes per prender notas o mappas de mente</li>',
+    ]);
+    expect(listItems(description?.ug)).toEqual([]);
+    expect(description?.ug).toMatch(/^<p>[^<]+<\/p>$/);
+
+    const itemCounts = Object.values(description ?? {}).map((markup) => listItems(markup).length);
+    expect(itemCounts.filter((count) => count === 4)).toHaveLength(38);
+    expect(itemCounts.filter((count) => count === 0)).toHaveLength(1);
+
+    // Every locale holds its own list, never a shared one.
+    const listCounts = Object.values(description ?? {}).map(
+      (markup) => (markup.match(/<ul>/g) ?? []).length,
+    );
+    expect(new Set(listCounts)).toEqual(new Set([0, 1]));
+  });
+});
+
+describe('org.kde.calligra.sheets', () => {
+  const component = parseAppStreamComponent(calligra);
+
+  test('reads the identity of the component', () => {
+    expect(component?.type).toBe('desktop');
+    expect(component?.id).toBe('org.kde.calligra.sheets');
+    expect(component?.metadataLicense).toBe('CC0-1.0');
+    expect(component?.projectLicense).toBe('GPL-2.0-or-later');
+    expect(component?.projectGroup).toBe('KDE');
+    expect(component?.developer).toEqual({
+      id: 'org.kde',
+      name: { en: 'The KDE Community' },
+    });
+  });
+
+  test('reads translated names and summaries', () => {
+    expect(Object.keys(component?.name ?? {})).toHaveLength(37);
+    expect(Object.keys(component?.summary ?? {})).toHaveLength(40);
+    expect(component?.name?.en).toBe('Calligra Sheets');
+    expect(component?.name?.tr).toBe('Calligra Tablolar');
+    expect(component?.summary?.['zh-CN']).toBe('电子表格处理软件');
+    expect(component?.summary?.ja).toBe('スプレッドシート');
+  });
+
+  test('reads the links, icons and screenshots of the component', () => {
+    expect(component?.urls).toEqual([
+      { type: 'homepage', url: 'https://www.calligra.org/sheets/' },
+      {
+        type: 'bugtracker',
+        url: 'https://bugs.kde.org/enter_bug.cgi?format=guided&product=calligrasheets',
+      },
+      { type: 'help', url: 'https://docs.kde.org/?application=sheets' },
+    ]);
+    expect(component?.icons).toEqual([]);
+    expect(component?.launchables).toEqual([
+      { type: 'desktop-id', value: 'org.kde.calligra.sheets.desktop' },
+    ]);
+    expect(component?.screenshots).toEqual([
+      {
+        type: 'default',
+        images: [{ url: 'https://cdn.kde.org/screenshots/calligrasheets/calligrasheets.png' }],
+        videos: [],
+      },
+    ]);
+    expect(component?.custom).toEqual({ 'KDE::matrix': '#calligra:kde.org' });
+    expect(component?.provides?.binaries).toEqual(['calligrasheets']);
+    expect(component?.categories).toEqual([]);
+  });
+
+  test('reads the release history', () => {
+    expect(component?.releases?.type).toBe('embedded');
+    expect(component?.releases?.items).toHaveLength(24);
+    expect(component?.releases?.items[0]).toEqual({
+      version: '26.08.1',
+      date: '2026-09-10',
+      type: 'stable',
+      urgency: 'medium',
+      issues: [],
+      artifacts: [],
+      sizes: [],
+      tags: [],
+    });
+    expect(component?.releases?.items.at(-1)?.version).toBe('4.0.0');
+  });
+
+  test('reads the release notes of a release that translates the description', () => {
+    const release = component?.releases?.items.at(-2);
+    expect(release?.version).toBe('4.0.1');
+    expect(Object.keys(release?.description ?? {})).toHaveLength(24);
+    expect(release?.description?.en).toBe(
+      '<p>This release add flatpak support to the Calligra Office suite.</p>',
+    );
+    expect(release?.description?.['zh-CN']).toMatch(/^<p>[^<]*flatpak[^<]*<\/p>$/);
+
+    const qt6 = component?.releases?.items.at(-1);
+    expect(qt6?.version).toBe('4.0.0');
+    expect(Object.keys(qt6?.description ?? {})).toHaveLength(23);
+    expect(qt6?.description?.en?.split('\n')).toHaveLength(2);
   });
 });
 

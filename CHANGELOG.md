@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-18
+
+### Added
+
+- Rich text descriptions keep the HTML heading elements `h1` to `h6`, next to
+  the `heading` element of the specification, so descriptions of legacy
+  metadata survive unchanged.
+
+### Fixed
+
+- MetaInfo descriptions that translate a list item by item (`xml:lang` on
+  `<li/>`) are no longer merged into the untranslated list. Every locale now
+  receives a list that holds only the items it translated, so translations no
+  longer leak into the other languages, and a list only appears for the locales
+  that translated at least one item.
+- Locale tags written in POSIX form (`xml:lang="zh_CN"`) are normalized to the
+  BCP 47 form (`zh-CN`), so one locale no longer shows up under two keys. The
+  case of the tag is kept as written, and untranslated values stay under `en`.
+
 ## [1.0.0] - 2026-09-13
 
 ### Added
