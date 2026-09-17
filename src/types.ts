@@ -10,7 +10,7 @@
  * {@link DEFAULT_LOCALE}.
  */
 
-/** Locale tag, such as `en`, `de` or `pt_BR`. */
+/** Locale tag in BCP 47 form, such as `en`, `de` or `pt-BR`. */
 export type Locale = string;
 
 /** Values indexed by {@link Locale}. Untranslated values use {@link DEFAULT_LOCALE}. */

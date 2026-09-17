@@ -64,6 +64,7 @@ import {
   elementName,
   elementLocale,
   firstElement,
+  localeTag,
   numberAttribute,
   parseXml,
   rootElement,
@@ -226,7 +227,7 @@ function parseScreenshot(element: XmlElement): Screenshot {
           width: numberAttribute(node, 'width'),
           height: numberAttribute(node, 'height'),
           scale: numberAttribute(node, 'scale'),
-          locale: attribute(node, 'xml:lang') ?? attribute(node, 'lang'),
+          locale: localeTag(node),
         }),
       )
       .filter((image) => image.url !== ''),
@@ -238,7 +239,7 @@ function parseScreenshot(element: XmlElement): Screenshot {
           codec: attribute(node, 'codec') as VideoCodec | undefined,
           width: numberAttribute(node, 'width'),
           height: numberAttribute(node, 'height'),
-          locale: attribute(node, 'xml:lang') ?? attribute(node, 'lang'),
+          locale: localeTag(node),
         }),
       )
       .filter((video) => video.url !== ''),
