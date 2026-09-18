@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-18
+
+### Fixed
+
+- Descriptions translated as a whole are no longer limited to the language of the first
+  `<description/>` element. Metadata that repeats the element once per language
+  (`<description xml:lang="de"/>`, `<description/>`, …) now reports every translation, merged per
+  locale, next to the block-by-block form that was already read. Legacy screenshots nested in a
+  translation of the description are read as well.
+
 ## [1.1.0] - 2026-09-18
 
 ### Added

@@ -253,6 +253,31 @@ describe('parseAppStreamComponent', () => {
     ]);
   });
 
+  test('reads legacy screenshots nested in a description', () => {
+    // Older metadata keeps the screenshots of a component inside its description, so every
+    // language carries its own copy of them.
+    const legacy = parseAppStreamComponent(`<component>
+      <id>org.example.Legacy</id>
+      <description xml:lang="de">
+        <p>Hallo</p>
+        <screenshot type="default">
+          <image type="source" width="1600" height="900">https://example.org/de.png</image>
+        </screenshot>
+      </description>
+      <description>
+        <p>Hello</p>
+        <screenshot type="default">
+          <image type="source" width="1600" height="900">https://example.org/en.png</image>
+        </screenshot>
+      </description>
+    </component>`);
+
+    expect(legacy?.screenshots?.map((screenshot) => screenshot.images[0]?.url)).toEqual([
+      'https://example.org/de.png',
+      'https://example.org/en.png',
+    ]);
+  });
+
   test('reads external release metadata', () => {
     expect(component?.releases).toEqual({
       type: 'external',
@@ -398,6 +423,33 @@ describe('descriptions', () => {
     </component>`);
 
     expect(component?.description).toEqual({ de: '<ul><li>eins</li> <li>zwei</li></ul>' });
+  });
+
+  test('merges the languages of descriptions translated as a whole', () => {
+    // Some metadata translates a description by repeating the element per language, next to the
+    // untranslated one, instead of translating single blocks.
+    const component = parseAppStreamComponent(`<component>
+      <id>org.example.Whole</id>
+      <description xml:lang="de"><p>Hallo</p></description>
+      <description><p>Hello</p></description>
+      <description xml:lang="zh-CN"><p>你好</p><p>世界</p></description>
+    </component>`);
+
+    expect(component?.description).toEqual({
+      de: '<p>Hallo</p>',
+      en: '<p>Hello</p>',
+      'zh-CN': '<p>你好</p>\n<p>世界</p>',
+    });
+  });
+
+  test('appends the markup of a language that repeats an element', () => {
+    const component = parseAppStreamComponent(`<component>
+      <id>org.example.Repeated</id>
+      <description><p>Hello</p></description>
+      <description><p>More</p></description>
+    </component>`);
+
+    expect(component?.description).toEqual({ en: '<p>Hello</p>\n<p>More</p>' });
   });
 });
 

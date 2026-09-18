@@ -180,3 +180,25 @@ export function parseRichText(element: XmlElement | undefined): Localized<RichTe
   for (const [locale, markup] of Object.entries(grouped)) result[locale] = markup.join('\n');
   return Object.keys(result).length === 0 ? undefined : result;
 }
+
+/**
+ * Reads every element of one name that holds rich text, such as the descriptions of a component,
+ * into one map of markup per locale.
+ *
+ * A description translated as a whole repeats the element once per language, next to the
+ * untranslated one, so a component carries several `<description/>` elements whose languages only
+ * differ in `xml:lang`. Reading the first element alone would report that one language and lose
+ * every other translation, so all of them are read and their markup is merged per locale, in
+ * document order. An element that repeats a language is appended to it.
+ */
+export function parseRichTexts(elements: XmlElement[]): Localized<RichText> | undefined {
+  const merged: Localized<RichText> = {};
+  for (const element of elements) {
+    const texts = parseRichText(element);
+    if (!texts) continue;
+    for (const [locale, markup] of Object.entries(texts)) {
+      merged[locale] = merged[locale] === undefined ? markup : `${merged[locale]}\n${markup}`;
+    }
+  }
+  return Object.keys(merged).length === 0 ? undefined : merged;
+}

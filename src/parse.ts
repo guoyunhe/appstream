@@ -1,4 +1,4 @@
-import { parseRichText } from './richtext';
+import { parseRichTexts } from './richtext';
 import {
   type Agreement,
   type AgreementType,
@@ -253,7 +253,10 @@ function parseScreenshot(element: XmlElement): Screenshot {
 function parseScreenshots(element: XmlElement): Screenshot[] {
   const nodes = [
     ...childElements(childElement(element, 'screenshots'), 'screenshot'),
-    ...childElements(childElement(element, 'description'), 'screenshot'),
+    // Legacy metadata nests the screenshots of every language in the description it belongs to.
+    ...childElements(element, 'description').flatMap((description) =>
+      childElements(description, 'screenshot'),
+    ),
   ];
 
   const screenshots: Screenshot[] = [];
@@ -316,7 +319,7 @@ function parseRelease(element: XmlElement): Release {
     dateEol: attribute(element, 'date_eol'),
     type: (attribute(element, 'type') as ReleaseType | undefined) ?? 'stable',
     urgency: (attribute(element, 'urgency') as ReleaseUrgency | undefined) ?? 'medium',
-    description: parseRichText(childElement(element, 'description')),
+    description: parseRichTexts(childElements(element, 'description')),
     url: childText(element, 'url'),
     issues: childElements(childElement(element, 'issues'), 'issue').map(parseIssue),
     artifacts: childElements(childElement(element, 'artifacts'), 'artifact').map(parseArtifact),
@@ -389,7 +392,7 @@ function parseAgreements(element: XmlElement): Agreement[] {
       compact({
         id: attribute(section, 'id') ?? '',
         name: localizedText(section, 'name'),
-        description: parseRichText(childElement(section, 'description')),
+        description: parseRichTexts(childElements(section, 'description')),
       }),
     ),
   }));
@@ -493,7 +496,7 @@ export function parseComponent(element: XmlElement): Component | undefined {
     sourcePkgName: childText(element, 'source_pkgname'),
     name: localizedText(element, 'name'),
     summary: localizedText(element, 'summary'),
-    description: parseRichText(childElement(element, 'description')),
+    description: parseRichTexts(childElements(element, 'description')),
     metadataLicense: childText(element, 'metadata_license'),
     projectLicense: childText(element, 'project_license'),
     projectGroup: childText(element, 'project_group'),
