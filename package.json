@@ -1,6 +1,6 @@
 {
   "name": "@guoyunhe/appstream",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A fast and lightweight JavaScript/TypeScript parser and generator for Freedesktop.org AppStream XML metadata",
   "keywords": [
     "appdata",
